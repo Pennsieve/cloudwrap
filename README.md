@@ -1,6 +1,6 @@
 # Cloudwrap
 
-[![Test and Release](https://github.com/Blackfynn/cloudwrap/actions/workflows/workflow.yml/badge.svg?branch=master)](https://github.com/Blackfynn/cloudwrap/actions/workflows/workflow.yml)
+[![Test and Release](https://github.com/Pennsieve/cloudwrap/actions/workflows/workflow.yml/badge.svg?branch=main)](https://github.com/Pennsieve/cloudwrap/actions/workflows/workflow.yml)
 
 NOTE: The AWS Secrets Manager interface is currently disabled.
 
