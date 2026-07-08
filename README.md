@@ -1,81 +1,110 @@
 # Cloudwrap
 
-[![Test and Release](https://github.com/Pennsieve/cloudwrap/actions/workflows/workflow.yml/badge.svg?branch=main)](https://github.com/Pennsieve/cloudwrap/actions/workflows/workflow.yml)
+[![CI](https://github.com/Pennsieve/cloudwrap/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Pennsieve/cloudwrap/actions/workflows/ci.yml)
 
-NOTE: The AWS Secrets Manager interface is currently disabled.
+Cloudwrap is an opinionated utility for fetching configuration from
+**AWS SSM Parameter Store**. Its primary use is to wrap a command: the executed
+command is injected with the configuration as environment variables.
 
-This library is an opinionated utility for fetching configuration and secrets from
-AWS SSM Parameter Store and AWS Secrets Manager. Its primary use is to act as a wrapper
-around a command to execute. The executed command is injected with the configuration as
-environment variables.
+Parameters are fetched by resource path. A path has exactly three components —
+a key nested under an environment and a service name:
 
-Key/value pairs are fetched by using resource paths. The path must be specified in the form of
-`/{environment}/{service_name}/key`. This utility always expects a path of three components,
-namely a key that is nested under an environment and service name. Multiple `service_name`s can
-be provided and the configurations are merged together. See `cloudwrap --help`.
+```
+/{environment}/{service}/key
+```
 
-Values are converted from kebab case to upper case with underscores.
+Multiple services can be provided (comma-separated). Their configurations are
+merged; when two services define the same key, the **left-most** service in the
+list wins.
 
-This utility is only associated with fetching of the underlying AWS services. Another mechanism
-of your choice may be used to set the configuration in SSM Parameter Store and AWS Secrets
-Manager.
+Key names are converted from kebab-case to upper-snake-case: the final path
+segment is uppercased and `-` is replaced with `_` (e.g. `one-key` → `ONE_KEY`).
 
-## Download
+> This tool only *fetches* configuration. Use another mechanism of your choice to
+> *set* values in SSM Parameter Store.
 
-NOTE: Due to a dependency that isn't yet released (rusoto), this project cannot be pulled from cargo.
+## Install
+
+Download a binary, `.deb`, or `.apk` from the
+[Releases](https://github.com/Pennsieve/cloudwrap/releases) page, or build from
+source:
+
+```
+go install github.com/pennsieve/cloudwrap@latest
+```
 
 ## Usage
 
-Describe keys for a service:
+The environment and service are given as flags (or via the
+`CLOUDWRAP_ENVIRONMENT` / `CLOUDWRAP_SERVICE` environment variables). Cloudwrap
+uses the standard AWS credential chain and the `us-east-1` region.
+
+Describe keys for a service (no values):
 
 ```
-$ cloudwrap staging service-name-test describe
-   KEY   | VERSION |  LAST_MODIFIED_USER   | LAST_MODIFIED_DATE
----------+---------+-----------------------+---------------------
- one-key |       1 | vienna@cloudwrap.com  | 2018-04-24 19:36:02
- two     |       1 | lachy@cloudwrap.com   | 2018-04-24 19:36:16
+$ cloudwrap -e staging -s service-name-test describe
++---------+---------+----------------------+---------------------+
+|   KEY   | VERSION |  LAST_MODIFIED_USER  | LAST_MODIFIED_DATE  |
++---------+---------+----------------------+---------------------+
+| one-key |       1 | vienna@cloudwrap.com | 2018-04-24 19:36:02 |
+| two     |       1 | lachy@cloudwrap.com  | 2018-04-24 19:36:16 |
++---------+---------+----------------------+---------------------+
 ```
 
-Print key/value pairs for a service:
+Print key/value pairs to stdout:
 
 ```
-$ cloudwrap staging service-name-test stdout
-   KEY   | VALUE
----------+----------
- one-key | valueone
- two     | valuetwo
-
+$ cloudwrap -e staging -s service-name-test stdout
+ONE_KEY=valueone
+TWO=valuetwo
 ```
 
-Execute a command with the configuration injected as environment variables:
+Write key/value pairs to a file as `export` statements (the parent directory
+must already exist):
 
 ```
-$ cloudwrap staging service-name-test exec env
+$ cloudwrap -e staging -s service-name-test file ./config.env
+$ cat ./config.env
+export ONE_KEY=valueone
+export TWO=valuetwo
+```
+
+Execute a command with the configuration injected as environment variables. The
+wrapped command's exit code is forwarded, and signals (Ctrl-C) are passed
+through to it:
+
+```
+$ cloudwrap -e staging -s service-name-test exec env
 ONE_KEY=valueone
 TWO=valuetwo
 ...
 ```
 
-See `cloudwrap --help` for a full listing of available commands.
+Merge multiple services (left-most wins on conflict):
 
-# Permissions
+```
+$ cloudwrap -e staging -s base-service,auth-service stdout
+```
+
+See `cloudwrap --help` and `cloudwrap <command> --help` for full details.
+
+## Permissions
 
 ### AWS IAM
 
-The following is a minimal example policy needed in order to use cloudwrap to wrap
-programs in AWS that make use of IAM permissions. The `kms:Decrypt` permission is only needed
-if your configuration parameters contain secure strings. Likewise, the kms key/alias used will have
-to be changed if you didn't use the ssm default.
+Minimal IAM policy needed to wrap a program that reads from SSM Parameter Store.
+The `kms:Decrypt` permission is only needed if your parameters are `SecureString`
+values; adjust the KMS key/alias if you did not use the SSM default.
 
 #### Command
 
 ```
-cloudwrap dev auth-service exec java -jar {jar-name}.jar
+cloudwrap -e dev -s auth-service exec java -jar {jar-name}.jar
 ```
 
 #### Resource
 
-```
+```hcl
 resource "aws_iam_role_policy" "parameters" {
   name = "dev-auth-service-parameter-policy"
   role = "${var.role_id}"
@@ -88,7 +117,8 @@ resource "aws_iam_role_policy" "parameters" {
       "Action": [
         "ssm:GetParameter",
         "ssm:GetParameters",
-        "ssm:GetParametersByPath"
+        "ssm:GetParametersByPath",
+        "ssm:DescribeParameters"
       ],
       "Effect": "Allow",
       "Resource": [
@@ -108,7 +138,19 @@ EOF
 }
 ```
 
-# License
+## Development
 
-This project is licensed under Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-   http://www.apache.org/licenses/LICENSE-2.0)
+```
+go build ./...     # build
+go test ./...      # run tests
+go vet ./...       # static checks
+```
+
+Releases are cut by pushing a semver tag (e.g. `1.0.0`); CI runs
+[GoReleaser](https://goreleaser.com/) to build binaries and `.deb`/`.apk`
+packages and publish them to GitHub Releases.
+
+## License
+
+This project is licensed under the Apache License, Version 2.0
+([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0).

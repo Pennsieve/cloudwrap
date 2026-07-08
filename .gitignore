@@ -1,5 +1,11 @@
+# Build output
+/cloudwrap
+/dist/
 
-/target
-**/*.rs.bk
-cloudwrap_*.tar.gz
+# Editor
 .idea/
+.vscode/
+
+# Go
+*.test
+*.out

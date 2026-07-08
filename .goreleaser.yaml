@@ -1,0 +1,52 @@
+version: 2
+
+project_name: cloudwrap
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cloudwrap
+    main: .
+    binary: cloudwrap
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: tarballs
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+# Native deb + apk packages (replaces the old fpm/ruby pipeline).
+# Installs the binary to /usr/bin/cloudwrap (dropping the old /opt/blackfynn path).
+nfpms:
+  - id: packages
+    package_name: cloudwrap
+    vendor: Pennsieve
+    homepage: https://github.com/Pennsieve/cloudwrap
+    maintainer: Pennsieve <support@pennsieve.io>
+    description: Wrapper utility that injects AWS SSM configuration into an executable command.
+    license: Apache-2.0
+    formats:
+      - deb
+      - apk
+    bindir: /usr/bin
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  draft: false
+  prerelease: auto
+
+changelog:
+  disable: true
