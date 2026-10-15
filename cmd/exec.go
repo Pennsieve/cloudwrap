@@ -35,7 +35,7 @@ func exitCodeFor(err error) int {
 }
 
 func newExecCmd() *cobra.Command {
-	return &cobra.Command{
+	c := &cobra.Command{
 		Use:   "exec -- <command> [args...]",
 		Short: "Execute a command with the configuration injected as environment variables.",
 		Args:  cobra.MinimumNArgs(1),
@@ -58,6 +58,10 @@ func newExecCmd() *cobra.Command {
 			return runCommand(ctx, args, pairs)
 		},
 	}
+	// Everything from the command name on belongs to the command, so
+	// `exec java -jar app.jar` works without `--`, as it did before 1.0.0.
+	c.Flags().SetInterspersed(false)
+	return c
 }
 
 // runCommand spawns args[0] with args[1:], augmenting the current environment
